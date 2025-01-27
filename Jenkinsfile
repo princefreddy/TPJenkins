@@ -15,7 +15,7 @@ pipeline {
             steps {
                 script {
                     echo "Construction de l'image Docker..."
-                    sh "docker build -t ${env.DOCKER_IMAGE_NAME} ${env.DIR_PATH}"
+                    sh "docker build -t ${env.DOCKER_IMAGE_NAME} ."
                 }
             }
         }
