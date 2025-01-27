@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         CONTAINER_ID = '' // Variable pour stocker l'ID du conteneur
-        SUM_PY_PATH = './sum.py' // Chemin vers le fichier sum.py
-        DIR_PATH = './' // Chemin vers le répertoire contenant le Dockerfile
-        TEST_FILE_PATH = './test_variables.txt' // Chemin vers le fichier de test
+        SUM_PY_PATH = '/sum.py' // Chemin vers le fichier sum.py
+        DIR_PATH = '/' // Chemin vers le répertoire contenant le Dockerfile
+        TEST_FILE_PATH = '/test_variables.txt' // Chemin vers le fichier de test
         DOCKER_IMAGE_NAME = 'jenkins-image' // Nom de l'image Docker
         DOCKERHUB_REPO = 'princefreddy/jenkins-image' // Nom du dépôt DockerHub
     }
