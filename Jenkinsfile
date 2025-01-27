@@ -11,7 +11,6 @@ pipeline {
     }
 
     stages {
-        // Étape 1: Construction de l'image Docker
         stage('Build') {
             steps {
                 script {
@@ -21,7 +20,6 @@ pipeline {
             }
         }
 
-        // Étape 2: Exécution du conteneur Docker
         stage('Run') {
             steps {
                 script {
@@ -30,13 +28,12 @@ pipeline {
                         script: "docker run -d ${DOCKER_IMAGE_NAME} tail -f /dev/null",
                         returnStdout: true
                     ).trim()
-                    CONTAINER_ID = output
-                    echo "Conteneur démarré avec l'ID : ${CONTAINER_ID}"
+                    env.CONTAINER_ID = output // Assignez le conteneur à la variable globale
+                    echo "Conteneur démarré avec l'ID : ${env.CONTAINER_ID}"
                 }
             }
         }
 
-        // Étape 3: Test du script Python
         stage('Test') {
             steps {
                 script {
@@ -44,14 +41,14 @@ pipeline {
                     def testLines = readFile(TEST_FILE_PATH).split('\n')
 
                     for (line in testLines) {
-                        if (line.trim()) { // Ignorer les lignes vides
+                        if (line.trim()) {
                             def vars = line.split(' ')
                             def arg1 = vars[0]
                             def arg2 = vars[1]
                             def expectedSum = vars[2].toFloat()
 
                             def output = sh(
-                                script: "docker exec ${CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}",
+                                script: "docker exec ${env.CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}",
                                 returnStdout: true
                             ).trim()
 
@@ -68,12 +65,11 @@ pipeline {
             }
         }
 
-        // Étape 4: Déploiement sur DockerHub
         stage('Deploy to DockerHub') {
             steps {
                 script {
                     echo "Déploiement de l'image Docker sur DockerHub..."
-                    sh "docker login -u princefreddy -p @Princefreddy15"
+                    sh "docker login -u your-dockerhub-username -p your-dockerhub-password"
                     sh "docker tag ${DOCKER_IMAGE_NAME} ${DOCKERHUB_REPO}"
                     sh "docker push ${DOCKERHUB_REPO}"
                     echo "Image poussée avec succès sur DockerHub."
@@ -82,13 +78,16 @@ pipeline {
         }
     }
 
-    // Étape 5: Nettoyage après le pipeline
     post {
         always {
             script {
                 echo "Nettoyage du conteneur Docker..."
-                sh "docker stop ${CONTAINER_ID} || true"
-                sh "docker rm ${CONTAINER_ID} || true"
+                if (env.CONTAINER_ID?.trim()) { // Vérifie que CONTAINER_ID est défini et non vide
+                    sh "docker stop ${env.CONTAINER_ID} || true"
+                    sh "docker rm ${env.CONTAINER_ID} || true"
+                } else {
+                    echo "Aucun conteneur à nettoyer."
+                }
             }
         }
     }
