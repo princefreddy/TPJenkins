@@ -15,7 +15,7 @@ pipeline {
             steps {
                 script {
                     echo "Construction de l'image Docker..."
-                    sh "docker build -t ${DOCKER_IMAGE_NAME} ${DIR_PATH}"
+                    sh "docker build -t ${env.DOCKER_IMAGE_NAME} ${env.DIR_PATH}"
                 }
             }
         }
@@ -25,7 +25,7 @@ pipeline {
                 script {
                     echo "Exécution du conteneur Docker..."
                     def output = sh(
-                        script: "docker run -d ${DOCKER_IMAGE_NAME} tail -f /dev/null",
+                        script: "docker run -d ${env.DOCKER_IMAGE_NAME} tail -f /dev/null",
                         returnStdout: true
                     ).trim()
                     env.CONTAINER_ID = output // Assignez le conteneur à la variable globale
@@ -37,8 +37,8 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    echo "Exécution des tests avec le fichier ${TEST_FILE_PATH}..."
-                    def testLines = readFile(TEST_FILE_PATH).split('\n')
+                    echo "Exécution des tests avec le fichier ${env.TEST_FILE_PATH}..."
+                    def testLines = readFile(env.TEST_FILE_PATH).split('\n')
 
                     for (line in testLines) {
                         if (line.trim()) {
@@ -70,8 +70,8 @@ pipeline {
                 script {
                     echo "Déploiement de l'image Docker sur DockerHub..."
                     sh "docker login -u your-dockerhub-username -p your-dockerhub-password"
-                    sh "docker tag ${DOCKER_IMAGE_NAME} ${DOCKERHUB_REPO}"
-                    sh "docker push ${DOCKERHUB_REPO}"
+                    sh "docker tag ${env.DOCKER_IMAGE_NAME} ${env.DOCKERHUB_REPO}"
+                    sh "docker push ${env.DOCKERHUB_REPO}"
                     echo "Image poussée avec succès sur DockerHub."
                 }
             }
