@@ -11,8 +11,7 @@ try:
     arg2 = float ( sys.argv[2])
 except ValueError :
     print (" Erreur :Les arguments doivent etre des nombres .")
-
-sys.exit(1)
+    sys.exit(1)
 
 # Calculer la somme
 resultat = arg1 + arg2
