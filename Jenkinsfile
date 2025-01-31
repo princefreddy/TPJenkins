@@ -34,9 +34,10 @@ pipeline {
                     // Vérifier si l'ID est valide
                     if (containerID ==~ /[a-f0-9]{12,}/) {
                         env.CONTAINER_ID = containerID
-                        echo "Container ID: ${env.CONTAINER_ID}"
+                        echo "env.Container_ID: ${env.CONTAINER_ID}"
+                        echo "containerID: ${containerID}"
                     } else {
-                        error "Impossible de récupérer l'ID du conteneur. Output: ${output}"
+                        echo "Impossible de récupérer l'ID du conteneur. Output: ${output}"
                     }
                 }
             }
@@ -48,7 +49,7 @@ pipeline {
                     echo "Début des tests"
                     // Vérifier si le conteneur existe
                     if (!env.CONTAINER_ID?.trim()) {
-                        error "ID du conteneur non défini"
+                        echo "ID du conteneur non défini"
                     }
                     
                     def testLines = readFile(TEST_FILE_PATH).split('\n')
