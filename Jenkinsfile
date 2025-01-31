@@ -25,7 +25,6 @@ pipeline {
             steps {
                 script {
                     echo "Lancement du conteneur"
-                    // Modification de la récupération de l'ID du conteneur
                     def cmd = "docker run -d ${DOCKER_IMAGE}"
                     def output = bat(script: cmd, returnStdout: true).trim()
                     // Récupérer la dernière ligne non vide
@@ -33,11 +32,19 @@ pipeline {
                     
                     // Vérifier si l'ID est valide
                     if (containerID ==~ /[a-f0-9]{12,}/) {
-                        env.CONTAINER_ID = containerID
-                        echo "env.Container_ID: ${env.CONTAINER_ID}"
+                        // Méthode 1: Utiliser withEnv
+                        withEnv(["CONTAINER_ID=${containerID}"]) {
+                            env.CONTAINER_ID = containerID
+                        }
+                        
+                        // Vérification de l'assignation
+                        echo "env.Container_ID après assignation: ${env.CONTAINER_ID}"
                         echo "containerID: ${containerID}"
+                        
+                        // Stockage additionnel dans un fichier temporaire pour plus de sécurité
+                        writeFile file: '.container_id', text: containerID
                     } else {
-                        echo "Impossible de récupérer l'ID du conteneur. Output: ${output}"
+                        error "Impossible de récupérer l'ID du conteneur. Output: ${output}"
                     }
                 }
             }
