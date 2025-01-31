@@ -67,7 +67,7 @@ pipeline {
             steps {
                 script {
                     // Connexion à DockerHub
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: '@Princefreddy15', usernameVariable: 'princefreddy')]) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
                         bat "docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}"
                     }
                     
