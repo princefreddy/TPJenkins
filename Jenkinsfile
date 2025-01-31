@@ -2,13 +2,14 @@ pipeline {
     agent any
     
     environment {
-        CONTAINER_ID = ''
         SUM_PY_PATH = 'sum.py'
         DIR_PATH = '.'
         TEST_FILE_PATH = 'test_variables.txt'
         DOCKER_IMAGE = 'sum-python'
         DOCKERHUB_CREDENTIALS = credentials('dockerhub')
         DOCKERHUB_REPO = 'princefreddy/sum-python'
+        // On déclare CONTAINER_ID comme une variable d'environnement vide
+        CONTAINER_ID = ''
     }
     
     stages {
@@ -24,10 +25,12 @@ pipeline {
         stage('Run') {
             steps {
                 script {
-                    // Exécution du conteneur et récupération de son ID
+                    // Exécution du conteneur et stockage de son ID
                     def output = bat(script: "docker run -d ${DOCKER_IMAGE}", returnStdout: true)
                     def lines = output.split('\n')
-                    CONTAINER_ID = lines[-1].trim()
+                    // On utilise env pour définir la variable d'environnement
+                    env.CONTAINER_ID = lines[-1].trim()
+                    echo "Container ID: ${env.CONTAINER_ID}"
                 }
             }
         }
@@ -45,7 +48,7 @@ pipeline {
                         
                         // Exécution du script dans le conteneur
                         def output = bat(
-                            script: "docker exec ${CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}",
+                            script: "docker exec ${env.CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}",
                             returnStdout: true
                         )
                         def result = output.split('\n')[-1].trim().toFloat()
@@ -64,7 +67,7 @@ pipeline {
             steps {
                 script {
                     // Connexion à DockerHub
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: '@Princefreddy', usernameVariable: 'princefreddy')]) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: '@Princefreddy15', usernameVariable: 'princefreddy')]) {
                         bat "docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}"
                     }
                     
@@ -81,10 +84,11 @@ pipeline {
     post {
         always {
             script {
-                // Nettoyage : arrêt et suppression du conteneur
-                if (CONTAINER_ID) {
-                    bat "docker stop ${CONTAINER_ID}"
-                    bat "docker rm ${CONTAINER_ID}"
+                // Vérification de l'existence d'un conteneur à nettoyer
+                if (env.CONTAINER_ID?.trim()) {
+                    echo "Nettoyage du conteneur ${env.CONTAINER_ID}"
+                    bat "docker stop ${env.CONTAINER_ID}"
+                    bat "docker rm ${env.CONTAINER_ID}"
                 }
             }
         }
