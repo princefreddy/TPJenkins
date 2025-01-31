@@ -6,9 +6,8 @@ pipeline {
         DIR_PATH = '.'
         TEST_FILE_PATH = 'test_variables.txt'
         DOCKER_IMAGE = 'sum-python'
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub')
+        DOCKERHUB = credentials('dockerhub')
         DOCKERHUB_REPO = 'princefreddy/sum-python'
-        // On déclare CONTAINER_ID comme une variable d'environnement vide
         CONTAINER_ID = ''
     }
     
@@ -16,7 +15,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    // Construction de l'image Docker
+                    echo "Début de la construction de l'image Docker"
                     bat "docker build -t ${DOCKER_IMAGE} ${DIR_PATH}"
                 }
             }
@@ -25,12 +24,20 @@ pipeline {
         stage('Run') {
             steps {
                 script {
-                    // Exécution du conteneur et stockage de son ID
-                    def output = bat(script: "docker run -d ${DOCKER_IMAGE}", returnStdout: true)
-                    def lines = output.split('\n')
-                    // On utilise env pour définir la variable d'environnement
-                    env.CONTAINER_ID = lines[-1].trim()
-                    echo "Container ID: ${env.CONTAINER_ID}"
+                    echo "Lancement du conteneur"
+                    // Modification de la récupération de l'ID du conteneur
+                    def cmd = "docker run -d ${DOCKER_IMAGE}"
+                    def output = bat(script: cmd, returnStdout: true).trim()
+                    // Récupérer la dernière ligne non vide
+                    def containerID = output.readLines().findAll { it.trim() }.last()
+                    
+                    // Vérifier si l'ID est valide
+                    if (containerID ==~ /[a-f0-9]{12,}/) {
+                        env.CONTAINER_ID = containerID
+                        echo "Container ID: ${env.CONTAINER_ID}"
+                    } else {
+                        error "Impossible de récupérer l'ID du conteneur. Output: ${output}"
+                    }
                 }
             }
         }
@@ -38,20 +45,29 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    // Lecture du fichier de test et exécution des tests
+                    echo "Début des tests"
+                    // Vérifier si le conteneur existe
+                    if (!env.CONTAINER_ID?.trim()) {
+                        error "ID du conteneur non défini"
+                    }
+                    
                     def testLines = readFile(TEST_FILE_PATH).split('\n')
                     for (line in testLines) {
+                        if (!line?.trim()) continue  // Ignorer les lignes vides
+                        
                         def vars = line.split(' ')
+                        if (vars.length != 3) {
+                            echo "Ligne de test invalide ignorée: ${line}"
+                            continue
+                        }
+                        
                         def arg1 = vars[0]
                         def arg2 = vars[1]
                         def expectedSum = vars[2].toFloat()
                         
-                        // Exécution du script dans le conteneur
-                        def output = bat(
-                            script: "docker exec ${env.CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}",
-                            returnStdout: true
-                        )
-                        def result = output.split('\n')[-1].trim().toFloat()
+                        def cmd = "docker exec ${env.CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}"
+                        def output = bat(script: cmd, returnStdout: true).trim()
+                        def result = output.readLines().findAll { it.trim() }.last().toFloat()
                         
                         if (result == expectedSum) {
                             echo "Test réussi pour ${arg1} + ${arg2} = ${expectedSum}"
@@ -66,16 +82,18 @@ pipeline {
         stage('Deploy to DockerHub') {
             steps {
                 script {
-                    // Connexion à DockerHub
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
-                        bat "docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}"
+                    echo "Début du déploiement vers DockerHub"
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        bat """
+                            echo %DOCKER_PASSWORD%| docker login -u %DOCKER_USERNAME% --password-stdin
+                            docker tag ${DOCKER_IMAGE} ${DOCKERHUB_REPO}:latest
+                            docker push ${DOCKERHUB_REPO}:latest
+                        """
                     }
-                    
-                    // Tag de l'image
-                    bat "docker tag ${DOCKER_IMAGE} ${DOCKERHUB_REPO}:latest"
-                    
-                    // Push de l'image
-                    bat "docker push ${DOCKERHUB_REPO}:latest"
                 }
             }
         }
@@ -84,13 +102,28 @@ pipeline {
     post {
         always {
             script {
-                // Vérification de l'existence d'un conteneur à nettoyer
+                echo "Début du nettoyage"
                 if (env.CONTAINER_ID?.trim()) {
-                    echo "Nettoyage du conteneur ${env.CONTAINER_ID}"
-                    bat "docker stop ${env.CONTAINER_ID}"
-                    bat "docker rm ${env.CONTAINER_ID}"
+                    try {
+                        bat "docker stop ${env.CONTAINER_ID}"
+                        bat "docker rm ${env.CONTAINER_ID}"
+                    } catch (Exception e) {
+                        echo "Erreur lors du nettoyage du conteneur: ${e.message}"
+                    }
+                }
+                
+                try {
+                    bat 'docker logout'
+                } catch (Exception e) {
+                    echo "Erreur lors de la déconnexion de DockerHub: ${e.message}"
                 }
             }
+        }
+        success {
+            echo 'Pipeline exécuté avec succès!'
+        }
+        failure {
+            echo 'Le pipeline a échoué.'
         }
     }
 }
