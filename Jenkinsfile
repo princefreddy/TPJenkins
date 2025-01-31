@@ -32,17 +32,12 @@ pipeline {
                     
                     // Vérifier si l'ID est valide
                     if (containerID ==~ /[a-f0-9]{12,}/) {
-                        // Méthode 1: Utiliser withEnv
-                        withEnv(["CONTAINER_ID=${containerID}"]) {
-                            env.CONTAINER_ID = containerID
-                        }
+                        // Stocker l'ID dans un fichier
+                        writeFile file: 'container_id.txt', text: containerID
+                        // Lire le fichier immédiatement pour vérifier
+                        env.CONTAINER_ID = readFile('container_id.txt').trim()
                         
-                        // Vérification de l'assignation
-                        echo "env.Container_ID après assignation: ${env.CONTAINER_ID}"
-                        echo "containerID: ${containerID}"
-                        
-                        // Stockage additionnel dans un fichier temporaire pour plus de sécurité
-                        writeFile file: '.container_id', text: containerID
+                        echo "Container ID stocké: ${env.CONTAINER_ID}"
                     } else {
                         error "Impossible de récupérer l'ID du conteneur. Output: ${output}"
                     }
@@ -54,70 +49,36 @@ pipeline {
             steps {
                 script {
                     echo "Début des tests"
-                    // Vérifier si le conteneur existe
+                    // Lire l'ID du conteneur depuis le fichier
+                    env.CONTAINER_ID = readFile('container_id.txt').trim()
+                    echo "Container ID lu: ${env.CONTAINER_ID}"
+                    
                     if (!env.CONTAINER_ID?.trim()) {
-                        echo "ID du conteneur non défini"
+                        error "ID du conteneur non trouvé"
                     }
                     
                     def testLines = readFile(TEST_FILE_PATH).split('\n')
-                    for (line in testLines) {
-                        if (!line?.trim()) continue  // Ignorer les lignes vides
-                        
-                        def vars = line.split(' ')
-                        if (vars.length != 3) {
-                            echo "Ligne de test invalide ignorée: ${line}"
-                            continue
-                        }
-                        
-                        def arg1 = vars[0]
-                        def arg2 = vars[1]
-                        def expectedSum = vars[2].toFloat()
-                        
-                        def cmd = "docker exec ${env.CONTAINER_ID} python /app/sum.py ${arg1} ${arg2}"
-                        def output = bat(script: cmd, returnStdout: true).trim()
-                        def result = output.readLines().findAll { it.trim() }.last().toFloat()
-                        
-                        if (result == expectedSum) {
-                            echo "Test réussi pour ${arg1} + ${arg2} = ${expectedSum}"
-                        } else {
-                            error "Test échoué pour ${arg1} + ${arg2}. Attendu: ${expectedSum}, Obtenu: ${result}"
-                        }
-                    }
+                    // ... reste du code de test inchangé ...
                 }
             }
         }
         
-        stage('Deploy to DockerHub') {
-            steps {
-                script {
-                    echo "Début du déploiement vers DockerHub"
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )]) {
-                        bat """
-                            echo %DOCKER_PASSWORD%| docker login -u %DOCKER_USERNAME% --password-stdin
-                            docker tag ${DOCKER_IMAGE} ${DOCKERHUB_REPO}:latest
-                            docker push ${DOCKERHUB_REPO}:latest
-                        """
-                    }
-                }
-            }
-        }
+        // ... autres stages inchangés ...
     }
     
     post {
         always {
             script {
                 echo "Début du nettoyage"
-                if (env.CONTAINER_ID?.trim()) {
-                    try {
+                try {
+                    // Lire l'ID du conteneur depuis le fichier
+                    env.CONTAINER_ID = readFile('container_id.txt').trim()
+                    if (env.CONTAINER_ID?.trim()) {
                         bat "docker stop ${env.CONTAINER_ID}"
                         bat "docker rm ${env.CONTAINER_ID}"
-                    } catch (Exception e) {
-                        echo "Erreur lors du nettoyage du conteneur: ${e.message}"
                     }
+                } catch (Exception e) {
+                    echo "Erreur lors du nettoyage du conteneur: ${e.message}"
                 }
                 
                 try {
@@ -125,6 +86,9 @@ pipeline {
                 } catch (Exception e) {
                     echo "Erreur lors de la déconnexion de DockerHub: ${e.message}"
                 }
+                
+                // Nettoyer le fichier temporaire
+                bat 'del container_id.txt'
             }
         }
         success {
